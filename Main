@@ -1,0 +1,136 @@
+import numpy as np
+import os
+from tensorflow import keras
+import tensorflow as tf
+from keras import models,layers
+from keras.preprocessing.image import ImageDataGenerator
+from keras.models import Sequential
+from keras.layers import Dense,Dropout,Flatten,Activation
+from keras.layers import Conv2D,MaxPooling2D
+from matplotlib import pyplot as plt
+import scipy
+import random
+
+train_dir=r"/kaggle/input/pets-facial-expression-dataset/Master Folder/train"
+test_dir=r"/kaggle/input/pets-facial-expression-dataset/Master Folder/test"
+valid_dir=r"/kaggle/input/pets-facial-expression-dataset/Master Folder/valid"
+Class=["Angry","happy","Other","Sad"]
+
+Dimensions=(48, 48)
+Batch_size=32
+
+train_Data_GEN=ImageDataGenerator(rescale=1./255,
+                                  rotation_range=30,
+                                  shear_range=0.3,
+                                  zoom_range=0.3,
+                                  horizontal_flip=True,
+                                  fill_mode="nearest")
+
+test_data_gen=ImageDataGenerator(rescale=1./255)
+
+# Training data generator
+train_generator = train_Data_GEN.flow_from_directory(
+    train_dir,
+    target_size=Dimensions,
+    batch_size=Batch_size,
+    class_mode='categorical',  # Assuming categorical labels
+    classes=Class
+)
+
+# Testing data generator
+test_generator = test_data_gen.flow_from_directory(
+    test_dir,
+    target_size=Dimensions,
+    batch_size=Batch_size,
+    class_mode='categorical',  # Assuming categorical labels
+    classes=Class
+)
+
+
+# Convolutional layer 1
+model=Sequential()
+model.add(Conv2D(64, (3, 3), input_shape=(48, 48, 3)))
+model.add(Activation('relu'))
+model.add(MaxPooling2D(pool_size=(2, 2)))
+
+
+# Convolutional layer 2
+model.add(Conv2D(128, (3, 3)))
+model.add(Activation('relu'))
+model.add(MaxPooling2D(pool_size=(2, 2)))
+
+# Convolutional layer 3
+model.add(Conv2D(512, (3, 3)))
+model.add(Activation('relu'))
+model.add(MaxPooling2D(pool_size=(2, 2)))
+
+
+# ...
+# Flatten the feature maps Here we convert the 2d feature map 
+# from the convolutional layers into a 1D vector, 
+# preparing the data for the fully connected layers.
+model.add(Flatten())
+
+
+model.add(Dense(512))
+model.add(Activation('relu'))
+# Add dropout for regularization
+model.add(Dropout(0.5))
+
+# Output layer with the number of classes
+model.add(Dense(len(Class)))
+# Softmax activation for multi-class classification
+model.add(Activation('softmax'))
+
+# Compile the model
+model.compile(loss='categorical_crossentropy',
+              optimizer='adam',
+              metrics=['accuracy'])
+# ...
+
+
+# Print a summary of the model's architecture
+model.summary()
+
+
+# Define the number of epochs for training
+epochs = 100  # You can adjust this as needed
+
+# Training the model
+history = model.fit(
+    train_generator,
+    epochs=epochs,
+    validation_data=test_generator
+)
+
+# Evaluate the model on the test data
+test_loss, test_accuracy = model.evaluate(test_generator)
+
+# Print the test loss and accuracy
+print(f'Test Loss: {test_loss:.4f}')
+print(f'Test Accuracy: {test_accuracy:.4f}')
+
+# Get predictions for a batch of test images
+predictions = model.predict(test_generator)
+
+# Map predicted probabilities to class labels
+predicted_labels = [Class[np.argmax(pred)] for pred in predictions]
+
+# Get the true labels from the test data generator
+true_labels = test_generator.classes
+
+# Display some sample predictions with their true labels
+sample_size = 10
+sample_indices = random.sample(range(len(predicted_labels)), sample_size)
+
+plt.figure(figsize=(12, 8))
+
+for i, index in enumerate(sample_indices, start=1):
+    plt.subplot(2, 5, i)
+    img = plt.imread(os.path.join(test_dir, test_generator.filenames[index]))
+    plt.imshow(img)
+    plt.title(f"Predicted: {predicted_labels[index]}\nTrue: {Class[true_labels[index]]}")
+    plt.axis('off')
+
+plt.tight_layout()
+plt.show()
